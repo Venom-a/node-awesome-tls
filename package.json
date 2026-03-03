@@ -1,0 +1,44 @@
+{
+  "name": "node-awesome-tls",
+  "version": "1.0.0",
+  "description": "TLS fingerprinting library with full hexClientHello support powered by burp-awesome-tls",
+  "main": "dist/index.js",
+  "typings": "typings/index.d.ts",
+  "repository": "https://github.com/your-username/node-awesome-tls",
+  "author": "Sahil1337",
+  "license": "GPL-3.0",
+  "private": false,
+  "scripts": {
+    "build": "tsc",
+    "build-server-win": "cd src-go && go build -o ../bin/awesome-tls-server.exe ./standalone/main.go",
+    "build-server-linux": "cd src-go && go build -o ../bin/awesome-tls-server ./standalone/main.go",
+    "build-server-mac": "cd src-go && go build -o ../bin/awesome-tls-server ./standalone/main.go"
+  },
+  "keywords": [
+    "tls",
+    "tls-fingerprint",
+    "ja3",
+    "cloudflare",
+    "bypass",
+    "node-awesome-tls",
+    "hex-client-hello"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "@types/tough-cookie": "^4.0.5",
+    "@types/cookie-parser": "^1.4.9",
+    "typedoc": "^0.25.13",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "piscina": "^5.1.1",
+    "tough-cookie": "^4.1.4"
+  },
+  "files": [
+    "dist",
+    "typings",
+    "bin",
+    "src-go"
+  ]
+}
