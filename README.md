@@ -3,7 +3,6 @@
   <p>Advanced TLS fingerprinting library powered by the <a href="https://github.com/sleeyax/burp-awesome-tls">burp-awesome-tls</a> Go server.<br/>Supports full <b>Hex Client Hello</b> spoofing from Wireshark captures.</p>
   <p>
     <img src="https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen" alt="Node version" />
-    <img src="https://img.shields.io/badge/go-%3E%3D1.21-blue" alt="Go version" />
     <img src="https://img.shields.io/badge/license-GPL--3.0-orange" alt="License" />
   </p>
 </div>
