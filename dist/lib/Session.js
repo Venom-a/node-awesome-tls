@@ -7,7 +7,7 @@ const interface_1 = require("../interface");
 const utils_1 = require("../utils");
 const Client_1 = require("./Client");
 const Response_1 = require("./Response");
-const __version__ = "2.1.0";
+const __version__ = "1.0.0";
 class Session {
     config;
     jar = new Cookie_1.Cookies();
@@ -18,88 +18,13 @@ class Session {
     async cookies() {
         return this.jar.fetchAllCookies();
     }
-    /**
-     * The 'GET' method performs a GET request to the provided URL with the provided options.
-     *
-     * @param url - The URL to perform the GET request to.
-     * @param options - The options for the GET request.
-     *
-     * @returns The response from the 'execute' method.
-     */
-    get(url, options = {}) {
-        return this.execute("GET", url, options);
-    }
-    /**
-     * The 'DELETE' method performs a DELETE request to the provided URL with the provided options.
-     *
-     * @param url - The URL to perform the DELETE request to.
-     * @param options - The options for the DELETE request.
-     *
-     * @returns The response from the 'execute' method.
-     */
-    delete(url, options = {}) {
-        return this.execute("DELETE", url, options);
-    }
-    /**
-     * The 'OPTIONS' method performs an OPTIONS request to the provided URL with the provided options.
-     *
-     * @param url - The URL to perform the OPTIONS request to.
-     * @param options - The options for the OPTIONS request.
-     *
-     * @returns The response from the 'execute' method.
-     */
-    options(url, options = {}) {
-        return this.execute("OPTIONS", url, options);
-    }
-    /**
-     * The 'HEAD' method performs a HEAD request to the provided URL with the provided options.
-     *
-     * @param url - The URL to perform the HEAD request to.
-     * @param options - The options for the HEAD request.
-     *
-     * @returns The response from the 'execute' method.
-     */
-    head(url, options = {}) {
-        return this.execute("HEAD", url, options);
-    }
-    /**
-     * The 'POST' method performs a POST request to the provided URL with the provided options.
-     *
-     * @param url - The URL to perform the POST request to.
-     * @param options - The options for the POST request.
-     *
-     * @returns The response from the 'execute' method.
-     */
-    post(url, options = {}) {
-        return this.execute("POST", url, options);
-    }
-    /**
-     * The 'PATCH' method performs a PATCH request to the provided URL with the provided options.
-     *
-     * @param url - The URL to perform the PATCH request to.
-     * @param options - The options for the PATCH request.
-     *
-     * @returns The response from the 'execute' method.
-     */
-    patch(url, options = {}) {
-        return this.execute("PATCH", url, options);
-    }
-    /**
-     * The 'PUT' method performs a PUT request to the provided URL with the provided options.
-     *
-     * @param url - The URL to perform the PUT request to.
-     * @param options - The options for the PUT request.
-     *
-     * @returns The response from the 'execute' method.
-     */
-    put(url, options = {}) {
-        return this.execute("PUT", url, options);
-    }
-    /**
-     * The 'close' method closes the current session.
-     *
-     * @returns The response from the 'destroySession' function.
-     */
+    get(url, options = {}) { return this.execute("GET", url, options); }
+    delete(url, options = {}) { return this.execute("DELETE", url, options); }
+    options(url, options = {}) { return this.execute("OPTIONS", url, options); }
+    head(url, options = {}) { return this.execute("HEAD", url, options); }
+    post(url, options = {}) { return this.execute("POST", url, options); }
+    patch(url, options = {}) { return this.execute("PATCH", url, options); }
+    put(url, options = {}) { return this.execute("PUT", url, options); }
     async close() {
         return Client_1.Client.getInstance().pool?.run(JSON.stringify({
             sessionId: this.sessionId,
@@ -128,11 +53,6 @@ class Session {
             requestHostOverride: options?.hostOverride || null,
             disableIPV6: this.config.disableIPV6 ?? false,
             disableIPV4: this.config.disableIPV4 ?? false,
-            transportOptions: this.config.transportOptions ?? undefined,
-            catchPanics: false,
-            streamOutputEOFSymbol: this.config.streamOutputEOFSymbol ?? null,
-            streamOutputPath: this.config.streamOutputPath ?? null,
-            streamOutputBlockSize: this.config.streamOutputBlockSize ?? null,
             serverNameOverwrite: this.config.serverNameOverwrite ?? "",
             connectHeaders: this.config.connectHeaders ?? options.connectHeaders ?? {},
             localAddress: this.config.localAddress ?? null,
@@ -141,34 +61,29 @@ class Session {
             requestCookies,
         };
         if (this.config.hexClientHello) {
-            payload["customTlsClient"] = {
-                hexClientHello: this.config.hexClientHello,
-            };
+            payload["customTlsClient"] = { hexClientHello: this.config.hexClientHello };
         }
         else if (this.config.clientIdentifier) {
             payload["tlsClientIdentifier"] = this.config.clientIdentifier;
         }
-        else
+        else {
             payload["tlsClientIdentifier"] = interface_1.ClientIdentifier.chrome_131;
+        }
         const requestPayloadString = JSON.stringify(payload);
         const rawResponse = await Client_1.Client.getInstance().pool.run(requestPayloadString, {
             name: "request",
         });
         const response = JSON.parse(rawResponse);
         const cookies = await this.jar.syncCookies(response.cookies || {}, url.toString());
-        setImmediate(() => {
-            this.freeMemory(response.id).catch(() => { });
-        });
+        setImmediate(() => { this.freeMemory(response.id).catch(() => {}); });
         return new Response_1.Response({ ...response, cookies });
     }
     async freeMemory(id) {
-        return Client_1.Client.getInstance().pool?.run(id.toString(), {
-            name: "freeMemory",
-        });
+        return Client_1.Client.getInstance().pool?.run(id.toString(), { name: "freeMemory" });
     }
     getDefaultHeaders() {
         return {
-            "User-Agent": `tls-client/${__version__}`,
+            "User-Agent": `node-awesome-tls/${__version__}`,
             "Accept-Encoding": "gzip, deflate, br",
             Accept: "*/*",
             Connection: "keep-alive",

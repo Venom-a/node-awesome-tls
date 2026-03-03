@@ -1,9 +1,11 @@
 <div align="center">
-  <h1>node-tls-client</h1>
-  <p>Advanced TLS fingerprinting library powered by the <a href="https://github.com/sleeyax/burp-awesome-tls">burp-awesome-tls</a> Go server.<br/>Supports full <b>Hex Client Hello</b> spoofing from Wireshark captures.</p>
+  <h1>node-awesome-tls</h1>
+  <p>Advanced TLS fingerprinting library powered by <a href="https://github.com/sleeyax/burp-awesome-tls">burp-awesome-tls</a>.<br/>Spoof any browser's exact TLS handshake using <b>Hex Client Hello</b> from Wireshark or named browser profiles.</p>
   <p>
+    <a href="https://www.npmjs.com/package/node-awesome-tls"><img src="https://img.shields.io/npm/v/node-awesome-tls" alt="NPM version" /></a>
+    <a href="https://www.npmjs.com/package/node-awesome-tls"><img src="https://img.shields.io/npm/dt/node-awesome-tls" alt="NPM downloads" /></a>
     <img src="https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen" alt="Node version" />
-    <img src="https://img.shields.io/badge/license-GPL--3.0-orange" alt="License" />
+    <img src="https://img.shields.io/badge/license-MIT-blue" alt="License" />
   </p>
 </div>
 
@@ -11,9 +13,9 @@
 
 ## What is TLS Fingerprinting?
 
-Changing the `User-Agent` header alone is not enough to fool modern bot detection systems. Servers use a technique called **TLS Fingerprinting** (e.g. JA3, JA4) to identify the real client behind a request — regardless of what headers say.
+Changing the `User-Agent` header alone is not enough to fool modern bot detection. Servers use **TLS Fingerprinting** (JA3, JA4) to identify the real client behind a request — regardless of what headers say.
 
-This library defeats TLS fingerprinting by letting you **spoof any browser's exact TLS handshake**, including raw Hex Client Hello records captured directly from Wireshark. It bypasses WAFs like CloudFlare, PerimeterX, Akamai, and DataDome.
+`node-awesome-tls` defeats this by spoofing the exact TLS handshake of any browser or device, including byte-for-byte replays of real captures from Wireshark. It bypasses WAFs like Cloudflare, PerimeterX, Akamai, and DataDome.
 
 ---
 
@@ -22,32 +24,33 @@ This library defeats TLS fingerprinting by letting you **spoof any browser's exa
 ```
 Your Node.js code
       │
-      │  Session.get / post / etc.
       ▼
-awesome-tls Go server  (auto-started by initTLS())
-      │
-      │  Real HTTPS with spoofed TLS fingerprint
-      ▼
-Target website
+node-awesome-tls  ──→  awesome-tls Go server (auto-started)
+                               │
+                               │  Real HTTPS with spoofed TLS fingerprint
+                               ▼
+                         Target website
 ```
 
-The Go server is **automatically started** when you call `initTLS()` and **automatically stopped** when you call `destroyTLS()`. No manual process management needed.
+The Go server binary is **downloaded automatically** on first `initTLS()` call and **started/stopped automatically** — no Go installation, no manual steps.
 
 ---
 
-## Prerequisites
+## Installation
 
-- **Node.js** >= 18
+```bash
+npm install node-awesome-tls
+```
 
 ---
 
 ## Quick Start
 
 ```javascript
-const { Session, ClientIdentifier, initTLS, destroyTLS } = require("node-tls-client");
+const { Session, ClientIdentifier, initTLS, destroyTLS } = require("node-awesome-tls");
 
 (async () => {
-  await initTLS(); // starts the Go server automatically
+  await initTLS(); // downloads binary if needed, starts server
 
   const session = new Session({
     clientIdentifier: ClientIdentifier.chrome_131,
@@ -55,10 +58,11 @@ const { Session, ClientIdentifier, initTLS, destroyTLS } = require("node-tls-cli
 
   try {
     const response = await session.get("https://example.com/");
-    console.log(response.status, await response.text());
+    console.log(response.status);
+    console.log(await response.text());
   } finally {
     await session.close();
-    await destroyTLS(); // stops the Go server
+    await destroyTLS();
   }
 })();
 ```
@@ -67,49 +71,18 @@ const { Session, ClientIdentifier, initTLS, destroyTLS } = require("node-tls-cli
 
 ## Examples
 
-### Using a named browser fingerprint
+### Hex Client Hello (Wireshark capture)
+
+The most powerful mode — replays a real browser's exact TLS handshake byte-for-byte.
 
 ```javascript
-const { Session, ClientIdentifier, initTLS, destroyTLS } = require("node-tls-client");
+const { Session, initTLS, destroyTLS } = require("node-awesome-tls");
 
 (async () => {
   await initTLS();
 
   const session = new Session({
-    clientIdentifier: ClientIdentifier.chrome_131,
-    timeout: 30000,
-    insecureSkipVerify: false,
-  });
-
-  const response = await session.get("https://example.com", {
-    headers: { "accept-language": "en-US,en;q=0.9" },
-    proxy: "http://user:pass@ip:port",
-    followRedirects: true,
-    cookies: { session_id: "abc123" },
-  });
-
-  console.log(response.status);
-  console.log(await response.json());
-
-  await session.close();
-  await destroyTLS();
-})();
-```
-
----
-
-### Using a Hex Client Hello from Wireshark
-
-Paste the raw hex stream captured from Wireshark to perfectly mimic any device's TLS handshake.
-
-```javascript
-const { Session, initTLS, destroyTLS } = require("node-tls-client");
-
-(async () => {
-  await initTLS();
-
-  const session = new Session({
-    hexClientHello: "160301080e0100080a0303...", // your Wireshark hex stream
+    hexClientHello: "160301080e...", // hex stream from Wireshark
   });
 
   const response = await session.get("https://cloudflare.manfredi.io/test/", {
@@ -132,11 +105,41 @@ const { Session, initTLS, destroyTLS } = require("node-tls-client");
 #### How to capture a Hex Client Hello from Wireshark
 
 1. Start a Wireshark capture on your network interface
-2. Open the browser or app you want to spoof and make any HTTPS request
-3. In Wireshark, apply the filter: `ssl.handshake.type == 1`
-4. Right-click the **TLSv1.3 Record Layer: Handshake Protocol: Client Hello** entry
+2. Make any HTTPS request from the browser/app you want to spoof
+3. Filter: `ssl.handshake.type == 1`
+4. Right-click **TLSv1.3 Record Layer: Handshake Protocol: Client Hello**
 5. Select **Copy → "...as a Hex Stream"**
-6. Paste the result as `hexClientHello` in your Session options
+6. Paste as `hexClientHello` in your Session
+
+---
+
+### Named browser fingerprint
+
+```javascript
+const { Session, ClientIdentifier, initTLS, destroyTLS } = require("node-awesome-tls");
+
+(async () => {
+  await initTLS();
+
+  const session = new Session({
+    clientIdentifier: ClientIdentifier.chrome_131,
+    timeout: 30000,
+  });
+
+  const response = await session.get("https://example.com", {
+    headers: { "accept-language": "en-US,en;q=0.9" },
+    proxy: "http://user:pass@ip:port",
+    followRedirects: true,
+    cookies: { session_id: "abc123" },
+  });
+
+  console.log(response.status);
+  console.log(await response.json());
+
+  await session.close();
+  await destroyTLS();
+})();
+```
 
 ---
 
@@ -154,11 +157,24 @@ require("fs").writeFileSync("image.png", buffer);
 
 ---
 
-## API Reference
+### POST request
+
+```javascript
+const response = await session.post("https://api.example.com/login", {
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ username: "user", password: "pass" }),
+});
+
+const data = await response.json();
+```
+
+---
+
+## API
 
 ### `initTLS()`
 
-Starts the awesome-tls Go server process in the background. Must be called before creating any `Session`.
+Downloads the server binary if not present, then starts it. Must be called before any `Session`.
 
 ```javascript
 await initTLS();
@@ -168,7 +184,7 @@ await initTLS();
 
 ### `destroyTLS()`
 
-Stops the Go server process and cleans up all sessions.
+Stops the server and cleans up all sessions.
 
 ```javascript
 await destroyTLS();
@@ -178,24 +194,25 @@ await destroyTLS();
 
 ### `new Session(options)`
 
-Creates a new TLS session with the given configuration.
-
 #### Session Options
 
 | Property | Type | Description |
 |---|---|---|
-| `hexClientHello` | `string` | Raw TLS Client Hello hex stream from Wireshark. **Highest priority** — overrides all other fingerprint options. |
-| `clientIdentifier` | `ClientIdentifier` | Named browser fingerprint e.g. `ClientIdentifier.chrome_131`. Used when no `hexClientHello` is set. |
+| `hexClientHello` | `string` | Raw TLS Client Hello hex stream from Wireshark. **Highest priority.** |
+| `clientIdentifier` | `ClientIdentifier` | Named browser fingerprint e.g. `ClientIdentifier.chrome_131`. |
 | `sessionId` | `string` | Custom session ID. Auto-generated if not provided. |
-| `headers` | `object` | Default headers sent with every request in this session. |
-| `proxy` | `string` | Proxy URL for all requests. Format: `http://user:pass@ip:port` |
-| `isRotatingProxy` | `boolean` | Set to `true` if using a rotating proxy. |
-| `insecureSkipVerify` | `boolean` | Skip SSL certificate verification. |
+| `headers` | `object` | Default headers for all requests in this session. |
+| `headerOrder` | `string[]` | Default header order for all requests. |
+| `connectHeaders` | `object` | Headers for CONNECT requests (proxy tunneling). |
+| `proxy` | `string` | Proxy for all requests. Format: `http://user:pass@ip:port` |
+| `isRotatingProxy` | `boolean` | Set `true` for rotating proxies. |
 | `timeout` | `number` | Request timeout in milliseconds. |
-| `debug` | `boolean` | Enable debug logging. |
+| `insecureSkipVerify` | `boolean` | Skip SSL certificate verification. |
 | `serverNameOverwrite` | `string` | Override the SNI hostname. |
+| `localAddress` | `string` | Bind requests to a specific local IP address. |
 | `disableIPV4` | `boolean` | Disable IPv4. |
 | `disableIPV6` | `boolean` | Disable IPv6. |
+| `debug` | `boolean` | Enable debug logging. |
 
 ---
 
@@ -203,15 +220,15 @@ Creates a new TLS session with the given configuration.
 
 | Method | Description |
 |---|---|
-| `get(url, options?)` | Sends a GET request. |
-| `post(url, options?)` | Sends a POST request. |
-| `put(url, options?)` | Sends a PUT request. |
-| `patch(url, options?)` | Sends a PATCH request. |
-| `delete(url, options?)` | Sends a DELETE request. |
-| `head(url, options?)` | Sends a HEAD request. |
-| `options(url, options?)` | Sends an OPTIONS request. |
-| `close()` | Closes and destroys the session. |
-| `cookies()` | Returns all cookies stored in the session jar. |
+| `get(url, options?)` | GET request |
+| `post(url, options?)` | POST request |
+| `put(url, options?)` | PUT request |
+| `patch(url, options?)` | PATCH request |
+| `delete(url, options?)` | DELETE request |
+| `head(url, options?)` | HEAD request |
+| `options(url, options?)` | OPTIONS request |
+| `close()` | Destroy this session |
+| `cookies()` | Get all session cookies |
 
 ---
 
@@ -219,15 +236,16 @@ Creates a new TLS session with the given configuration.
 
 | Parameter | Type | Description |
 |---|---|---|
-| `headers` | `object` | Request-level headers (overrides session headers). |
-| `body` | `any` | Request body for POST / PUT / PATCH. |
+| `headers` | `object` | Request headers (overrides session headers). |
+| `body` | `any` | Request body for POST/PUT/PATCH. |
 | `proxy` | `string` | Per-request proxy. Format: `http://user:pass@ip:port` |
-| `isRotatingProxy` | `boolean` | Whether the proxy is a rotating proxy. |
-| `cookies` | `object` | Cookies to send with this request. |
-| `followRedirects` | `boolean` | Follow HTTP redirects (default: `false`). |
-| `byteResponse` | `boolean` | Return body as plain base64 string instead of text (for binary responses like images). |
-| `hostOverride` | `string` | Override the Host header (useful when connecting directly to an IP). |
-| `headerOrder` | `string[]` | Override header order for this specific request. |
+| `isRotatingProxy` | `boolean` | Set `true` for rotating proxies. |
+| `cookies` | `object` | Cookies to send. |
+| `followRedirects` | `boolean` | Follow redirects (default: `false`). |
+| `byteResponse` | `boolean` | Return body as plain base64 (for binary responses). |
+| `hostOverride` | `string` | Override the Host header. |
+| `headerOrder` | `string[]` | Custom header order for this request. |
+| `connectHeaders` | `object` | Headers for CONNECT requests (proxy tunneling). |
 
 ---
 
@@ -235,23 +253,21 @@ Creates a new TLS session with the given configuration.
 
 | Property | Type | Description |
 |---|---|---|
-| `ok` | `boolean` | `true` if status is 200–299. |
+| `ok` | `boolean` | `true` if status 200–299. |
 | `status` | `number` | HTTP status code. |
 | `headers` | `object` | Response headers. |
-| `body` | `string` | Response body as text, or plain base64 if `byteResponse: true`. |
-| `cookies` | `object` | Cookies returned in this response. |
-| `url` | `string` | Final URL of the response. |
+| `body` | `string` | Body as text, or base64 if `byteResponse: true`. |
+| `cookies` | `object` | Response cookies. |
+| `url` | `string` | Final URL after redirects. |
 
 | Method | Description |
 |---|---|
-| `text()` | Returns the body as a string. |
-| `json()` | Parses and returns the body as JSON. |
+| `text()` | Body as string. |
+| `json()` | Body parsed as JSON. |
 
 ---
 
 ### `ClientIdentifier` enum
-
-Pass as `clientIdentifier` in Session options to use a pre-built browser fingerprint.
 
 **Chrome**
 ```
@@ -286,44 +302,49 @@ nike_ios_mobile  nike_android_mobile
 mms_ios  mms_ios_1  mms_ios_2  mms_ios_3
 mesh_ios  mesh_ios_1  mesh_ios_2
 mesh_android  mesh_android_1  mesh_android_2
-confirmed_ios  confirmed_android
-cloudscraper
+confirmed_ios  confirmed_android  cloudscraper
 ```
 
 ---
 
 ## Fingerprint Priority
 
-When creating a Session, the TLS fingerprint is selected in this order:
-
 ```
-1. hexClientHello    ← raw Wireshark capture, exact byte-for-byte spoof
-2. clientIdentifier  ← pre-built named browser profile
+1. hexClientHello    ← exact byte-for-byte Wireshark capture
+2. clientIdentifier  ← named browser profile
 3. chrome_131        ← default fallback
 ```
 
 ---
 
+## Supported Platforms
+
+| Platform | Architecture | Binary |
+|---|---|---|
+| Windows | x64 | `awesome-tls-server-windows-64.exe` |
+| Linux | x64 | `awesome-tls-server-linux-amd64` |
+| macOS | Intel (x64) | `awesome-tls-server-darwin-amd64` |
+| macOS | Apple Silicon (arm64) | `awesome-tls-server-darwin-arm64` |
+
+---
+
 ## References
 
-This library stands on the shoulders of the following open source projects:
-
-- **[sleeyax/burp-awesome-tls](https://github.com/sleeyax/burp-awesome-tls)** — The Go server that powers TLS fingerprint spoofing and `hexClientHello` support. The core engine of this library.
-- **[Sahil1337/node-tls-client](https://github.com/Sahil1337/node-tls-client)** — The original Node.js TLS client whose API and `Session` interface this library is fully compatible with.
-- **[bogdanfinn/tls-client](https://github.com/bogdanfinn/tls-client)** — The underlying Go TLS client library used by the server, providing all named browser profiles.
-- **[bogdanfinn/utls](https://github.com/bogdanfinn/utls)** — The uTLS fork used by the server for raw ClientHello fingerprinting.
-- **[refraction-networking/utls](https://github.com/refraction-networking/utls)** — The original uTLS library for TLS fingerprint impersonation.
+- **[sleeyax/burp-awesome-tls](https://github.com/sleeyax/burp-awesome-tls)** — Go server powering TLS fingerprint spoofing and hexClientHello support.
+- **[Sahil1337/node-tls-client](https://github.com/Sahil1337/node-tls-client)** — Original Node.js TLS client this library is API-compatible with.
+- **[bogdanfinn/tls-client](https://github.com/bogdanfinn/tls-client)** — Underlying Go TLS client providing all named browser profiles.
+- **[bogdanfinn/utls](https://github.com/bogdanfinn/utls)** — uTLS fork enabling raw ClientHello fingerprinting.
+- **[refraction-networking/utls](https://github.com/refraction-networking/utls)** — Original uTLS library for TLS fingerprint impersonation.
 
 ### Useful Tools
 
-- **[tls.peet.ws](https://tls.peet.ws/)** — Inspect your current TLS fingerprint (JA3, JA4, HTTP/2)
+- **[tls.peet.ws](https://tls.peet.ws/)** — Inspect your TLS fingerprint (JA3, JA4, HTTP/2)
 - **[tlsfingerprint.io](https://tlsfingerprint.io/)** — JA3/JA4 fingerprint database
 - **[cloudflare.manfredi.io](https://cloudflare.manfredi.io/en/tools/connection)** — Check your Cloudflare bot score
 - **[scrapfly.io/web-scraping-tools/http2-fingerprint](https://scrapfly.io/web-scraping-tools/http2-fingerprint)** — HTTP/2 fingerprint checker
-- **[kawayiyi.com/tls](https://kawayiyi.com/tls)** — TLS fingerprint inspection tool
 
 ---
 
 ## License
 
-[GPL-3.0](./LICENSE)
+[MIT](./LICENSE)

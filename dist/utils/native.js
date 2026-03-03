@@ -2,30 +2,80 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LibraryHandler = void 0;
 
-const https   = require("https");
-const http    = require("http");
-const crypto  = require("crypto");
-const cp      = require("child_process");
-const path    = require("path");
-const fs      = require("fs");
-const os      = require("os");
+const https  = require("https");
+const crypto = require("crypto");
+const cp     = require("child_process");
+const path   = require("path");
+const fs     = require("fs");
+const net    = require("net");
 
-// ─── binary location ────────────────────────────────────────────────────────
-// The pre-built server binary ships inside the package under ./bin/
-// Name matches the platform: awesome-tls-server.exe (win32) or awesome-tls-server (others)
-function getBinaryPath() {
-  const ext = process.platform === "win32" ? ".exe" : "";
-  return path.join(__dirname, "..", "..", "bin", `awesome-tls-server${ext}`);
+// ─── auto-download from GitHub releases ──────────────────────────────────────
+const RELEASE_BASE = "https://github.com/Venom-a/node-awesome-tls/releases/download/1.0.0";
+
+const PLATFORM_MAP = {
+  win32:  { x64:   "awesome-tls-server-windows-64.exe" },
+  linux:  { x64:   "awesome-tls-server-linux-amd64"    },
+  darwin: { x64:   "awesome-tls-server-darwin-amd64",
+            arm64: "awesome-tls-server-darwin-arm64"    },
+};
+
+function getBinaryName() {
+  const p = process.platform, a = process.arch;
+  const name = PLATFORM_MAP[p] && PLATFORM_MAP[p][a];
+  if (!name) throw new Error("[node-awesome-tls] Unsupported platform: " + p + "/" + a);
+  return name;
+}
+
+function downloadFile(url, dest) {
+  return new Promise((resolve, reject) => {
+    function get(u) {
+      https.get(u, (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location)
+          return get(new URL(res.headers.location, u).toString());
+        if (res.statusCode !== 200)
+          return reject(new Error("Download failed HTTP " + res.statusCode + " " + u));
+        const total = parseInt(res.headers["content-length"] || "0", 10);
+        let received = 0;
+        const file = fs.createWriteStream(dest);
+        res.on("data", (chunk) => {
+          received += chunk.length;
+          if (total) process.stdout.write("\r[node-awesome-tls] Downloading... " + ((received / total) * 100).toFixed(1) + "%");
+        });
+        res.pipe(file);
+        file.on("finish", () => file.close(() => { process.stdout.write("\n"); resolve(); }));
+        file.on("error",  (err) => { fs.unlink(dest, () => {}); reject(err); });
+      }).on("error", reject);
+    }
+    get(url);
+  });
+}
+
+async function ensureBinary() {
+  const binName = getBinaryName();
+  const binPath = path.join(__dirname, "..", "..", "bin", binName);
+  if (fs.existsSync(binPath)) return binPath;
+  const binDir = path.dirname(binPath);
+  if (!fs.existsSync(binDir)) fs.mkdirSync(binDir, { recursive: true });
+  const url = RELEASE_BASE + "/" + binName;
+  console.log("[node-awesome-tls] Downloading server binary for " + process.platform + "/" + process.arch + "...");
+  console.log("  from: " + url);
+  try {
+    await downloadFile(url, binPath);
+    if (process.platform !== "win32") fs.chmodSync(binPath, 0o755);
+    console.log("[node-awesome-tls] Binary ready.");
+  } catch (err) {
+    throw new Error("[node-awesome-tls] Failed to download binary: " + err.message);
+  }
+  return binPath;
 }
 
 // ─── process management ──────────────────────────────────────────────────────
 let serverProcess = null;
-let serverAddr    = null;   // set after the process prints its address
+let serverAddr    = null;
 
 // Find a random free TCP port
 function getFreePort() {
   return new Promise((resolve, reject) => {
-    const net = require("net");
     const srv = net.createServer();
     srv.listen(0, "127.0.0.1", () => {
       const port = srv.address().port;
@@ -64,21 +114,10 @@ function waitForServer(host, port, timeoutMs = 10000) {
 
 function startServerProcess() {
   return new Promise(async (resolve, reject) => {
-    const binPath = getBinaryPath();
-
-    if (!fs.existsSync(binPath)) {
-      return reject(
-        new Error(
-          `awesome-tls server binary not found at ${binPath}.\n` +
-          `Build it by running this command inside the node-awesome-tls folder:\n` +
-          `  Windows : go build -o bin\\awesome-tls-server.exe .\\src-go\\standalone\\main.go\n` +
-          `  Linux/Mac: go build -o bin/awesome-tls-server ./src-go/standalone/main.go`
-        )
-      );
-    }
-
     try {
-      // Pick a free port ourselves so we don't depend on the binary printing it
+      // Auto-download binary if not present
+      const binPath = await ensureBinary();
+
       const port = await getFreePort();
       const addr = `127.0.0.1:${port}`;
 

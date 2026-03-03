@@ -1,18 +1,15 @@
 {
   "name": "node-awesome-tls",
   "version": "1.0.0",
-  "description": "TLS fingerprinting library with full hexClientHello support powered by burp-awesome-tls",
+  "description": "Advanced TLS fingerprinting library with hexClientHello support powered by burp-awesome-tls. Bypasses Cloudflare, PerimeterX, Akamai and more.",
   "main": "dist/index.js",
   "typings": "typings/index.d.ts",
-  "repository": "https://github.com/your-username/node-awesome-tls",
-  "author": "Sahil1337",
-  "license": "GPL-3.0",
+  "repository": "https://github.com/Venom-a/node-awesome-tls",
+  "author": "Venom-a",
+  "license": "MIT",
   "private": false,
   "scripts": {
-    "build": "tsc",
-    "build-server-win": "cd src-go && go build -o ../bin/awesome-tls-server.exe ./standalone/main.go",
-    "build-server-linux": "cd src-go && go build -o ../bin/awesome-tls-server ./standalone/main.go",
-    "build-server-mac": "cd src-go && go build -o ../bin/awesome-tls-server ./standalone/main.go"
+    "build": "tsc"
   },
   "keywords": [
     "tls",
@@ -21,7 +18,10 @@
     "cloudflare",
     "bypass",
     "node-awesome-tls",
-    "hex-client-hello"
+    "hex-client-hello",
+    "wireshark",
+    "fingerprint",
+    "bot-bypass"
   ],
   "devDependencies": {
     "@types/node": "^20.12.12",
@@ -39,6 +39,6 @@
     "dist",
     "typings",
     "bin",
-    "src-go"
+    "README.md"
   ]
 }
