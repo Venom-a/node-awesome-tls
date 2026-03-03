@@ -1,160 +1,100 @@
 <div align="center">
   <h1>node-tls-client</h1>
-  <p>Advanced library based on node-fetch syntax and tls-client.</p>
+  <p>Advanced TLS fingerprinting library powered by the <a href="https://github.com/sleeyax/burp-awesome-tls">burp-awesome-tls</a> Go server.<br/>Supports full <b>Hex Client Hello</b> spoofing from Wireshark captures.</p>
   <p>
-    <a href="https://www.npmjs.com/package/node-tls-client"><img src="https://img.shields.io/npm/v/node-tls-client?maxAge=3600" alt="NPM version" /></a>
-    <a href="https://www.npmjs.com/package/node-tls-client"><img src="https://img.shields.io/npm/dt/node-tls-client?maxAge=3600" alt="NPM downloads" /></a>
-  </p>
-  <p>
-    <a href="https://www.npmjs.com/package/node-tls-client"><img src="https://nodei.co/npm/node-tls-client.png?downloads=true&stars=true" alt="NPM Banner"></a>
+    <img src="https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen" alt="Node version" />
+    <img src="https://img.shields.io/badge/go-%3E%3D1.21-blue" alt="Go version" />
+    <img src="https://img.shields.io/badge/license-GPL--3.0-orange" alt="License" />
   </p>
 </div>
 
-<div align="center"> <p> <b> What is TLS Fingerprinting? </b> </p>
-Some people think it is enough to change the user-agent header of a request to let the server think that the client requesting a resource is a specific browser. Nowadays this is not enough, because the server might use a technique to detect the client browser which is called TLS Fingerprinting. <b>This library aims to defeat it.</b> </p></div>
+---
+
+## What is TLS Fingerprinting?
+
+Changing the `User-Agent` header alone is not enough to fool modern bot detection systems. Servers use a technique called **TLS Fingerprinting** (e.g. JA3, JA4) to identify the real client behind a request — regardless of what headers say.
+
+This library defeats TLS fingerprinting by letting you **spoof any browser's exact TLS handshake**, including raw Hex Client Hello records captured directly from Wireshark. It bypasses WAFs like CloudFlare, PerimeterX, Akamai, and DataDome.
+
+---
+
+## How it works
+
+```
+Your Node.js code
+      │
+      │  Session.get / post / etc.
+      ▼
+awesome-tls Go server  (auto-started by initTLS())
+      │
+      │  Real HTTPS with spoofed TLS fingerprint
+      ▼
+Target website
+```
+
+The Go server is **automatically started** when you call `initTLS()` and **automatically stopped** when you call `destroyTLS()`. No manual process management needed.
+
+---
+
+## Prerequisites
+
+- **Node.js** >= 18
+- **Go** >= 1.21 — [Download here](https://go.dev/dl/)
+
+---
 
 ## Installation
 
-```sh
-npm install node-tls-client
-# (or)
-yarn add node-tls-client
-# (or)
-pnpm add node-tls-client
+```bash
+npm install /path/to/node-tls-client-goserver
 ```
 
-## Example
+### Build the server binary (one time only)
+
+After installing, build the Go server binary once. You only ever need to do this once.
+
+**Windows:**
+```bash
+cd node_modules/node-tls-client
+go build -o bin\awesome-tls-server.exe .\src-go\standalone\main.go
+```
+
+**Linux / macOS:**
+```bash
+cd node_modules/node-tls-client
+go build -o bin/awesome-tls-server ./src-go/standalone/main.go
+```
+
+---
+
+## Quick Start
 
 ```javascript
-const {
-  Session,
-  ClientIdentifier,
-  initTLS,
-  destroyTLS,
-} = require("node-tls-client");
+const { Session, ClientIdentifier, initTLS, destroyTLS } = require("node-tls-client");
 
-/**
- * @description Demonstrates using the node-tls-client library to make HTTP requests with a specified timeout.
- * Note: The timeout is set per session and cannot be changed during the session.
- *
- * @see {@link https://sahil1337.github.io/node-tls-client/interfaces/SessionOptions.html SessionOptions} for more details.
- */
 (async () => {
-  await initTLS();
+  await initTLS(); // starts the Go server automatically
 
   const session = new Session({
-    clientIdentifier: ClientIdentifier.chrome_103,
-    timeout: 3000,
+    clientIdentifier: ClientIdentifier.chrome_131,
   });
 
   try {
-    const response = await session.get("https://website.com/");
-
+    const response = await session.get("https://example.com/");
     console.log(response.status, await response.text());
-  } catch (error) {
-    console.error("An error occurred:", error);
   } finally {
     await session.close();
-    await destroyTLS();
+    await destroyTLS(); // stops the Go server
   }
 })();
 ```
 
-## Advanced example
+---
 
-```javascript
-const { Session, initTLS, destroyTLS } = require("node-tls-client");
+## Examples
 
-/**
- * @description Demonstrates an advanced usage scenario with the node-tls-client library, showcasing custom TLS client configuration.
- *
- * This example illustrates the creation of a TLS session with tailored settings and the execution of a GET request.
- *
- * Custom TLS settings encompass a wide array of configurations, including:
- * - JA3 string specification
- * - Fine-tuning HTTP/2 settings
- * - Defining supported signature algorithms
- * - Specifying ALPN (Application-Layer Protocol Negotiation) protocols
- * - Declaring supported TLS versions
- * - Setting key share curves for cryptographic key exchange
- * - Choosing a certificate compression algorithm
- * - Configuring connection and header flow parameters
- * - Defining the order of headers and priority frames
- * - Providing default headers for HTTP requests
- *
- * @see {@link https://sahil1337.github.io/node-tls-client/interfaces/SessionOptions.html SessionOptions} for more details on session options.
- */
+### Using a named browser fingerprint
 
-(async () => {
-  await initTLS();
-
-  const session = new Session({
-    ja3string:
-      "771,2570-4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,2570-0-23-65281-10-11-35-16-5-13-18-51-45-43-27-17513-2570-21,2570-29-23-24,0",
-    h2Settings: {
-      HEADER_TABLE_SIZE: 65536,
-      MAX_CONCURRENT_STREAMS: 1000,
-      INITIAL_WINDOW_SIZE: 6291456,
-      MAX_HEADER_LIST_SIZE: 262144,
-    },
-    h2SettingsOrder: [
-      "HEADER_TABLE_SIZE",
-      "MAX_CONCURRENT_STREAMS",
-      "INITIAL_WINDOW_SIZE",
-      "MAX_HEADER_LIST_SIZE",
-    ],
-    supportedSignatureAlgorithms: [
-      "ECDSAWithP256AndSHA256",
-      "PSSWithSHA256",
-      "PKCS1WithSHA256",
-      "ECDSAWithP384AndSHA384",
-      "PSSWithSHA384",
-      "PKCS1WithSHA384",
-      "PSSWithSHA512",
-      "PKCS1WithSHA512",
-    ],
-    alpnProtocols: ["h2", "http/1.1"],
-    alpsProtocols: ["h2"],
-    supportedVersions: ["GREASE", "1.3", "1.2"],
-    keyShareCurves: ["GREASE", "X25519"],
-    certCompressionAlgo: "brotli",
-    pseudoHeaderOrder: [":method", ":authority", ":scheme", ":path"],
-    connectionFlow: 15663105,
-    headerOrder: ["accept", "user-agent", "accept-encoding", "accept-language"],
-    priorityFrames: [
-      {
-        streamID: 1,
-        priorityParam: {
-          streamDep: 1,
-          exclusive: true,
-          weight: 1,
-        },
-      },
-    ],
-    headerPriority: {
-      streamDep: 1,
-      exclusive: true,
-      weight: 1,
-    },
-    headers: {
-      accept:
-        "application/json,text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-      "user-agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36",
-      "accept-encoding": "gzip, deflate, br",
-      "accept-language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
-    },
-  });
-
-  const response = await session.get("http://localhost:3000/");
-  console.log(response.status, await response.text());
-  await session.close();
-
-  await destroyTLS();
-})();
-```
-
-## More examples
 ```javascript
 const { Session, ClientIdentifier, initTLS, destroyTLS } = require("node-tls-client");
 
@@ -162,112 +102,254 @@ const { Session, ClientIdentifier, initTLS, destroyTLS } = require("node-tls-cli
   await initTLS();
 
   const session = new Session({
-    clientIdentifier: ClientIdentifier.chrome_120, //client identifier
-    timeout: 30 * 1000, //timeout in *milliseconds*, applies for each requests, checkout examples/timeout.js for using different timeouts.
+    clientIdentifier: ClientIdentifier.chrome_131,
+    timeout: 30000,
     insecureSkipVerify: false,
   });
-    
+
   const response = await session.get("https://example.com", {
-    proxy: `http://user:pass@ip:port`, //proxy format: http://user:pass@ip:port or http://ip:port
-    cookies: { parameter: "value" }, //cookies
-    followRedirects: true, //follow redirected urls
-    headers: { authorization: "test" }, //request headers
+    headers: { "accept-language": "en-US,en;q=0.9" },
+    proxy: "http://user:pass@ip:port",
+    followRedirects: true,
+    cookies: { session_id: "abc123" },
   });
 
   console.log(response.status);
+  console.log(await response.json());
 
   await session.close();
   await destroyTLS();
 })();
-  //more details: https://sahil1337.github.io/node-tls-client/hierarchy.html#BaseRequestOptions
 ```
 
-## Session
+---
 
-<div id="session-options">
+### Using a Hex Client Hello from Wireshark
 
-## Session Options
+Paste the raw hex stream captured from Wireshark to perfectly mimic any device's TLS handshake.
 
-| Property                       | Type                                                                                                                                    | Description                                                            |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `sessionId`                    | string                                                                                                                                  | A unique identifier for the session.                                   |
-| `headers`                      | IncomingHttpHeaders                                                                                                                     | An object containing custom headers to send with the request.          |
-| `proxy`                        | string                                                                                                                                  | A proxy server URL to use for the request. [format: 'http://user:pass@ip:port or http://ip:port']
-| `isRotatingProxy`                        | boolean                                                                                                                                  | Whether the proxy is of rotating type or not.                      |
-| `clientIdentifier`             | [ClientIdentifier](https://sahil1337.github.io/node-tls-client/enums/ClientIdentifier.html)                                                                                                                                  | A string identifier for the client, e.g., `"chrome_120"`.              |
-| `ja3string`                    | string                                                                                                                                  | A string representing JA3 fingerprinting configuration.                |
-| `h2Settings`                   | [h2Settings](https://sahil1337.github.io/node-tls-client/interfaces/H2Settings.html)[]                                       | An object specifying HTTP/2 settings.                                  |
-| `h2SettingsOrder`              | [h2Settings](https://sahil1337.github.io/node-tls-client/interfaces/H2Settings.html)[]                                       | An array specifying the order of HTTP/2 settings.                      |
-| `supportedSignatureAlgorithms` | [supportedSignatureAlgorithms](https://sahil1337.github.io/node-tls-client/types/SupportedSignatureAlgorithms.html)[] | An array of supported signature algorithms.                            |
-| `supportedVersions`            | [supportedVersions](https://sahil1337.github.io/node-tls-client/types/SupportedVersions.html)[]                        | An array of supported TLS versions.                                    |
-| `keyShareCurves`               | [keyShareCurves](https://sahil1337.github.io/node-tls-client/types/KeyShareCurves.html)[]                               | An array of key share curves.                                          |
-| `certCompressionAlgo`          | [certCompressionAlgo](https://sahil1337.github.io/node-tls-client/types/CertCompressionAlgo.html)                  | A certificate compression algorithm, e.g., `"brotli"`.                 |
-| `pseudoHeaderOrder`            | [pseudoHeaderOrder](https://sahil1337.github.io/node-tls-client/types/PseudoHeaderOrder.html)[]                                                                                                                     | An array specifying the order of pseudo-headers.                       |
-| `connectionFlow`               | number                                                                                                                                  | A number specifying the connection flow control window size.           |
-| `priorityFrames`               | [priorityFrame](https://sahil1337.github.io/node-tls-client/interfaces/PriorityFrames.html)[]                                | An array of priority frames to send with the request.                  |
-| `headerOrder`                  | string[]                                                                                                                                | An array specifying the order of headers.                              |
-| `alpnProtocols`                | string[]                                                                                                                                | An array of Application-Layer Protocol Negotiation (ALPN) protocols.   |
-| `alpsProtocols`                | string[]                                                                                                                                | An array of Application Layer Protocol Settings (ALPS) protocols.      |
-| `headerPriority`               | [priorityParam](https://sahil1337.github.io/node-tls-client/interfaces/PriorityParam.html)                                   | An object specifying header priority parameters.                       |
-| `randomTlsExtensionOrder`      | boolean                                                                                                                                 | A boolean indicating whether to use a random order for TLS extensions. |
-| `forceHttp1`                   | boolean                                                                                                                                 | A boolean indicating whether to force the use of HTTP/1.1.             |
-| `debug`                        | boolean                                                                                                                                 | A boolean indicating whether to enable debug mode.                     |
-| `insecureSkipVerify`           | boolean                                                                                                                                 | A boolean indicating whether to skip SSL certificate verification.     |
+```javascript
+const { Session, initTLS, destroyTLS } = require("node-tls-client");
 
-</div>
+(async () => {
+  await initTLS();
 
-<div id="session-methods">
+  const session = new Session({
+    hexClientHello: "160301080e0100080a0303...", // your Wireshark hex stream
+  });
 
-## Session methods
+  const response = await session.get("https://cloudflare.manfredi.io/test/", {
+    headers: {
+      "user-agent": "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0",
+      "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "accept-language": "en-US,en;q=0.5",
+      "accept-encoding": "gzip, deflate, br",
+    },
+  });
 
-| Method                                          | Description                                                                                       |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `get(url: string, options: RequestOptions)`     | Sends a GET request to the specified URL and returns the response.                                |
-| `put(url: string, options: RequestOptions)`     | Sends a PUT request to the specified URL with the provided options and returns the response.      |
-| `delete(url: string, options: RequestOptions)`  | Sends a DELETE request to the specified URL with the provided options and returns the response.   |
-| `options(url: string, options: RequestOptions)` | Sends an OPTIONS request to the specified URL with the provided options and returns the response. |
-| `head(url: string, options: RequestOptions)`    | Sends a HEAD request to the specified URL with the provided options and returns the response.     |
-| `post(url: string, options: RequestOptions)`    | Sends a POST request to the specified URL with the provided options and returns the response.     |
-| `patch(url: string, options: RequestOptions)`   | Sends a PATCH request to the specified URL with the provided options and returns the response.    |
-| `close()`                                       | Closes the session.                                                                               |
-| `cookies()`                                       | Returns an promise that resolves with an object containing the session cookies.                                                 |
+  console.log(response.status);
+  console.log(response.body);
 
-<div id="request">
+  await session.close();
+  await destroyTLS();
+})();
+```
 
-## Request Options
+#### How to capture a Hex Client Hello from Wireshark
 
-| Parameter            | Description                                                                                     |
-| -------------------- | ----------------------------------------------------------------------------------------------- |
-| `body`               | The body of the request, if applicable. This can be a string, a buffer, or an object.           |
-| `headers`            | An object containing the request headers.                                                       |
-| `followRedirects`           | A boolean value indicating whether to follow redirects.                                         |
-| `additionalDecode`   | A boolean value indicating whether to perform additional decoding of the response content.      |
-| `proxy`              | The URL of the proxy server to be used for the request. [format: 'http://user:pass@ip:port or http://ip:port']                                                                                                                |
-| `isRotatingProxy`                        |  Whether the proxy is of rotating type or not.                      |
-| `cookies`            | An object containing cookies to be sent with the request.                                       |
+1. Start a Wireshark capture on your network interface
+2. Open the browser or app you want to spoof and make any HTTPS request
+3. In Wireshark, apply the filter: `ssl.handshake.type == 1`
+4. Right-click the **TLSv1.3 Record Layer: Handshake Protocol: Client Hello** entry
+5. Select **Copy → "...as a Hex Stream"**
+6. Paste the result as `hexClientHello` in your Session options
 
-</div>
+---
 
-<div id="response">
+### Binary response (images, files)
 
-## Response
+```javascript
+const response = await session.get("https://example.com/image.png", {
+  byteResponse: true,
+});
 
-| Properties | Description                                                                                                                                                                                       |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ok`       | This boolean value indicates whether the request was successful or not. It returns "true" if the response status is within the range 200-299, indicating success. Otherwise, it returns "false".` |
-| `headers`  | This object contains the response headers returned by the server.                                                                                                                                 |
-| `status`   | This integer represents the HTTP status code of the response.                                                                                                                                     |
-| `url`      | This is the URL to which the request was made.                                                                                                                                                    |
-| `cookies`   | Returns an object containing the cookies for that URL.    
+// response.body is a plain base64 string
+const buffer = Buffer.from(response.body, "base64");
+require("fs").writeFileSync("image.png", buffer);
+```
 
-| Methods     | Description                                                                          |
-| ----------- | ------------------------------------------------------------------------------------ |
-| `text()`    | Returns a promise that resolves with the response body as plain text.                                            |
-| `json()`    | Returns a promise that resolves with the response body parsed as JSON.                                           |
+---
 
-</div>
+## API Reference
 
+### `initTLS()`
 
+Starts the awesome-tls Go server process in the background. Must be called before creating any `Session`.
 
-## Acknowledgements
-This library is based on [bogdanfinn's](https://github.com/bogdanfinn) tls client in golang. A big thanks to him.
+```javascript
+await initTLS();
+```
+
+---
+
+### `destroyTLS()`
+
+Stops the Go server process and cleans up all sessions.
+
+```javascript
+await destroyTLS();
+```
+
+---
+
+### `new Session(options)`
+
+Creates a new TLS session with the given configuration.
+
+#### Session Options
+
+| Property | Type | Description |
+|---|---|---|
+| `hexClientHello` | `string` | Raw TLS Client Hello hex stream from Wireshark. **Highest priority** — overrides all other fingerprint options. |
+| `clientIdentifier` | `ClientIdentifier` | Named browser fingerprint e.g. `ClientIdentifier.chrome_131`. Used when no `hexClientHello` is set. |
+| `sessionId` | `string` | Custom session ID. Auto-generated if not provided. |
+| `headers` | `object` | Default headers sent with every request in this session. |
+| `proxy` | `string` | Proxy URL for all requests. Format: `http://user:pass@ip:port` |
+| `isRotatingProxy` | `boolean` | Set to `true` if using a rotating proxy. |
+| `insecureSkipVerify` | `boolean` | Skip SSL certificate verification. |
+| `timeout` | `number` | Request timeout in milliseconds. |
+| `debug` | `boolean` | Enable debug logging. |
+| `serverNameOverwrite` | `string` | Override the SNI hostname. |
+| `disableIPV4` | `boolean` | Disable IPv4. |
+| `disableIPV6` | `boolean` | Disable IPv6. |
+
+---
+
+### Session Methods
+
+| Method | Description |
+|---|---|
+| `get(url, options?)` | Sends a GET request. |
+| `post(url, options?)` | Sends a POST request. |
+| `put(url, options?)` | Sends a PUT request. |
+| `patch(url, options?)` | Sends a PATCH request. |
+| `delete(url, options?)` | Sends a DELETE request. |
+| `head(url, options?)` | Sends a HEAD request. |
+| `options(url, options?)` | Sends an OPTIONS request. |
+| `close()` | Closes and destroys the session. |
+| `cookies()` | Returns all cookies stored in the session jar. |
+
+---
+
+### Request Options
+
+| Parameter | Type | Description |
+|---|---|---|
+| `headers` | `object` | Request-level headers (overrides session headers). |
+| `body` | `any` | Request body for POST / PUT / PATCH. |
+| `proxy` | `string` | Per-request proxy. Format: `http://user:pass@ip:port` |
+| `isRotatingProxy` | `boolean` | Whether the proxy is a rotating proxy. |
+| `cookies` | `object` | Cookies to send with this request. |
+| `followRedirects` | `boolean` | Follow HTTP redirects (default: `false`). |
+| `byteResponse` | `boolean` | Return body as plain base64 string instead of text (for binary responses like images). |
+| `hostOverride` | `string` | Override the Host header (useful when connecting directly to an IP). |
+| `headerOrder` | `string[]` | Override header order for this specific request. |
+
+---
+
+### Response
+
+| Property | Type | Description |
+|---|---|---|
+| `ok` | `boolean` | `true` if status is 200–299. |
+| `status` | `number` | HTTP status code. |
+| `headers` | `object` | Response headers. |
+| `body` | `string` | Response body as text, or plain base64 if `byteResponse: true`. |
+| `cookies` | `object` | Cookies returned in this response. |
+| `url` | `string` | Final URL of the response. |
+
+| Method | Description |
+|---|---|
+| `text()` | Returns the body as a string. |
+| `json()` | Parses and returns the body as JSON. |
+
+---
+
+### `ClientIdentifier` enum
+
+Pass as `clientIdentifier` in Session options to use a pre-built browser fingerprint.
+
+**Chrome**
+```
+chrome_103  chrome_104  chrome_105  chrome_106  chrome_107  chrome_108
+chrome_109  chrome_110  chrome_111  chrome_112  chrome_116_PSK
+chrome_116_PSK_PQ  chrome_117  chrome_120  chrome_124  chrome_131  chrome_131_psk
+```
+
+**Firefox**
+```
+firefox_102  firefox_104  firefox_105  firefox_106  firefox_108  firefox_110
+firefox_117  firefox_120  firefox_123  firefox_132  firefox_133
+```
+
+**Safari**
+```
+safari_15_6_1  safari_16_0  safari_ipad_15_6
+safari_ios_15_5  safari_ios_15_6  safari_ios_16_0  safari_ios_17_0  safari_ios_18_0
+```
+
+**Opera**
+```
+opera_89  opera_90  opera_91
+```
+
+**Mobile / Other**
+```
+okhttp4_android_7   okhttp4_android_8   okhttp4_android_9   okhttp4_android_10
+okhttp4_android_11  okhttp4_android_12  okhttp4_android_13
+zalando_android_mobile  zalando_ios_mobile
+nike_ios_mobile  nike_android_mobile
+mms_ios  mms_ios_1  mms_ios_2  mms_ios_3
+mesh_ios  mesh_ios_1  mesh_ios_2
+mesh_android  mesh_android_1  mesh_android_2
+confirmed_ios  confirmed_android
+cloudscraper
+```
+
+---
+
+## Fingerprint Priority
+
+When creating a Session, the TLS fingerprint is selected in this order:
+
+```
+1. hexClientHello    ← raw Wireshark capture, exact byte-for-byte spoof
+2. clientIdentifier  ← pre-built named browser profile
+3. chrome_131        ← default fallback
+```
+
+---
+
+## References
+
+This library stands on the shoulders of the following open source projects:
+
+- **[sleeyax/burp-awesome-tls](https://github.com/sleeyax/burp-awesome-tls)** — The Go server that powers TLS fingerprint spoofing and `hexClientHello` support. The core engine of this library.
+- **[Sahil1337/node-tls-client](https://github.com/Sahil1337/node-tls-client)** — The original Node.js TLS client whose API and `Session` interface this library is fully compatible with.
+- **[bogdanfinn/tls-client](https://github.com/bogdanfinn/tls-client)** — The underlying Go TLS client library used by the server, providing all named browser profiles.
+- **[bogdanfinn/utls](https://github.com/bogdanfinn/utls)** — The uTLS fork used by the server for raw ClientHello fingerprinting.
+- **[refraction-networking/utls](https://github.com/refraction-networking/utls)** — The original uTLS library for TLS fingerprint impersonation.
+
+### Useful Tools
+
+- **[tls.peet.ws](https://tls.peet.ws/)** — Inspect your current TLS fingerprint (JA3, JA4, HTTP/2)
+- **[tlsfingerprint.io](https://tlsfingerprint.io/)** — JA3/JA4 fingerprint database
+- **[cloudflare.manfredi.io](https://cloudflare.manfredi.io/en/tools/connection)** — Check your Cloudflare bot score
+- **[scrapfly.io/web-scraping-tools/http2-fingerprint](https://scrapfly.io/web-scraping-tools/http2-fingerprint)** — HTTP/2 fingerprint checker
+- **[kawayiyi.com/tls](https://kawayiyi.com/tls)** — TLS fingerprint inspection tool
+
+---
+
+## License
+
+[GPL-3.0](./LICENSE)
