@@ -39,31 +39,6 @@ The Go server is **automatically started** when you call `initTLS()` and **autom
 ## Prerequisites
 
 - **Node.js** >= 18
-- **Go** >= 1.21 — [Download here](https://go.dev/dl/)
-
----
-
-## Installation
-
-```bash
-npm install /path/to/node-tls-client-goserver
-```
-
-### Build the server binary (one time only)
-
-After installing, build the Go server binary once. You only ever need to do this once.
-
-**Windows:**
-```bash
-cd node_modules/node-tls-client
-go build -o bin\awesome-tls-server.exe .\src-go\standalone\main.go
-```
-
-**Linux / macOS:**
-```bash
-cd node_modules/node-tls-client
-go build -o bin/awesome-tls-server ./src-go/standalone/main.go
-```
 
 ---
 
